@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>给你的小心心</title>
+<style>
+  html,body{margin:0;height:100%;background:#1b0010;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  canvas{display:block;position:fixed;inset:0}
+  .ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;text-align:center;z-index:2}
+  .card{background:rgba(255,255,255,.08);backdrop-filter:blur(6px);padding:28px 26px;border-radius:18px;max-width:86vw;box-shadow:0 10px 40px rgba(255,80,140,.25)}
+  h1{margin:0 0 10px;font-size:22px;color:#ffd0e0}
+  p{margin:6px 0;line-height:1.7;color:#ffe6f0;white-space:pre-line}
+  button{margin-top:16px;border:0;padding:12px 26px;border-radius:999px;font-size:16px;color:#fff;background:linear-gradient(135deg,#ff5e8a,#ff2d6f);cursor:pointer;box-shadow:0 8px 20px rgba(255,45,111,.4)}
+  button:active{transform:scale(.97)}
+  .tip{position:fixed;left:0;right:0;bottom:14px;color:#ffb3cf;font-size:12px;text-align:center;z-index:2;opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="ui" id="ui">
+  <div class="card">
+    <h1>💗 有一件事想告诉你</h1>
+    <p id="words">亲爱的（填她名字）：
+遇见你之后，我的世界才开始有颜色。
+点下面这个按钮，看好啦～</p>
+    <button id="start">开始接收满屏桃心</button>
+  </div>
+</div>
+<div class="tip">打开后点击屏幕任意位置，会再炸一波爱心</div>
+
+<!-- 可选背景音乐：把 musicSrc 换成你的 mp3 地址或本地文件；移动端必须用户点过才能播 -->
+<audio id="bg" loop>
+  <source id="bgSrc" src="" type="audio/mpeg" />
+</audio>
+
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W, H, DPR;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = cv.width = innerWidth*DPR;
+    H = cv.height = innerHeight*DPR;
+    cv.style.width = innerWidth+'px';
+    cv.style.height = innerHeight+'px';
+  }
+  resize(); addEventListener('resize', resize);
+
+  // 画一个桃心路径
+  function heartPath(c, x, y, s){
+    c.beginPath();
+    var k = s*DPR;
+    c.moveTo(x, y + 0.3*k);
+    c.bezierCurveTo(x, y, x - 0.5*k, y, x - 0.5*k, y + 0.3*k);
+    c.bezierCurveTo(x - 0.5*k, y + 0.65*k, x, y + 0.85*k, x, y + 1.1*k);
+    c.bezierCurveTo(x, y + 0.85*k, x + 0.5*k, y + 0.65*k, x + 0.5*k, y + 0.3*k);
+    c.bezierCurveTo(x + 0.5*k, y, x, y, x, y + 0.3*k);
+    c.closePath();
+  }
+
+  var pinks = ['#ff5e8a','#ff85a1','#ff2d6f','#ff9ec4','#ffd0e0','#ff3b6b'];
+  var hearts = [];
+  function spawnFalling(n){
+    for(var i=0;i<n;i++){
+      hearts.push({
+        x: Math.random()*W,
+        y: -Math.random()*H*0.5,
+        s: 14+Math.random()*22,
+        vy: (0.4+Math.random()*0.9)*DPR,
+        vx: (Math.random()-0.5)*0.4*DPR,
+        sway: Math.random()*Math.PI*2,
+        swaySpeed: 0.01+Math.random()*0.03,
+        rot: (Math.random()-0.5)*0.6,
+        color: pinks[(Math.random()*pinks.length)|0],
+        alpha: 0.85+Math.random()*0.15
+      });
+    }
+  }
+
+  // 点击爆炸：从点击处射出一圈桃心粒子
+  var burst = [];
+  function explode(x, y){
+    var n = 26;
+    for(var i=0;i<n;i++){
+      var a = Math.PI*2*i/n + Math.random()*0.2;
+      var sp = (2+Math.random()*3.5)*DPR;
+      burst.push({
+        x:x, y:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+        s:10+Math.random()*16, life:1,
+        color:pinks[(Math.random()*pinks.length)|0]
+      });
+    }
+  }
+
+  var running = false;
+  function tick(){
+    ctx.clearRect(0,0,W,H);
+    if(running){
+      // 持续补飘落爱心
+      if(hearts.length < 90) spawnFalling(2);
+    }
+    for(var i=hearts.length-1;i>=0;i--){
+      var h = hearts[i];
+      h.sway += h.swaySpeed;
+      h.x += h.vx + Math.sin(h.sway)*0.6*DPR;
+      h.y += h.vy;
+      ctx.save();
+      ctx.globalAlpha = h.alpha;
+      ctx.translate(h.x, h.y);
+      ctx.rotate(h.rot + Math.sin(h.sway)*0.1);
+      ctx.fillStyle = h.color;
+      heartPath(ctx, 0, -0.3*h.s, h.s);
+      ctx.fill();
+      ctx.restore();
+      if(h.y > H + 40*DPR){ hearts.splice(i,1); }
+    }
+    for(var j=burst.length-1;j>=0;j--){
+      var b = burst[j];
+      b.x += b.vx; b.y += b.vy; b.vy += 0.06*DPR; b.vx*=0.99; b.life -= 0.012;
+      ctx.save();
+      ctx.globalAlpha = Math.max(b.life,0);
+      ctx.translate(b.x,b.y);
+      ctx.fillStyle = b.color;
+      heartPath(ctx, 0, -0.3*b.s, b.s);
+      ctx.fill();
+      ctx.restore();
+      if(b.life<=0) burst.splice(j,1);
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
+
+  // 开始按钮
+  var ui = document.getElementById('ui');
+  var bg = document.getElementById('bg');
+  document.getElementById('start').addEventListener('click', function(){
+    running = true;
+    spawnFalling(70);
+    ui.style.transition='opacity .6s'; ui.style.opacity='0';
+    setTimeout(function(){ ui.style.display='none'; }, 600);
+    // 尝试播音乐（若已配置 src）
+    if(bg.querySelector('source').src){ bg.play().catch(function(){}); }
+  });
+
+  // 点击全屏再炸
+  cv.addEventListener('click', function(e){
+    var x = e.clientX*DPR, y = e.clientY*DPR;
+    explode(x,y); spawnFalling(8);
+  });
+  cv.addEventListener('touchstart', function(e){
+    var t=e.touches[0]; if(!t)return;
+    explode(t.clientX*DPR, t.clientY*DPR); spawnFalling(8);
+  }, {passive:true});
+})();
+</script>
+</body>
+</html>
